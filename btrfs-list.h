@@ -16,7 +16,11 @@
  * Boston, MA 021110-1307, USA.
  */
 
+#if BTRFS_FLAT_INCLUDES
 #include "kerncompat.h"
+#else
+#include <btrfs/kerncompat.h>
+#endif /* BTRFS_FLAT_INCLUDES */
 
 struct root_info;
 
