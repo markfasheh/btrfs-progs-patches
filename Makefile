@@ -119,6 +119,9 @@ btrfs-convert: $(objects) $(libs) convert.o
 ioctl-test: $(objects) $(libs) ioctl-test.o
 	$(CC) $(CFLAGS) -o ioctl-test $(objects) ioctl-test.o $(LDFLAGS) $(LIBS)
 
+send-test: $(objects) send-test.o
+	$(CC) $(CFLAGS) -o send-test send-test.o $(LDFLAGS) $(LIBS) -lpthread
+
 manpages:
 	cd man; $(MAKE)
 
@@ -128,7 +131,7 @@ install-man:
 clean :
 	rm -f $(progs) $(libs) cscope.out *.o .*.d btrfs-convert btrfs-image \
 	      btrfs-select-super btrfs-zero-log btrfstune dir-test ioctl-test \
-	      quick-test version.h
+	      quick-test send-test version.h
 	cd man; $(MAKE) clean
 
 install: $(libs) $(progs) install-man
