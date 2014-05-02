@@ -22,10 +22,12 @@
 
 #include "ctree.h"
 #include "ioctl.h"
+#include "disk-io.h"
 
 #include "commands.h"
 #include "qgroup.h"
 #include "utils.h"
+#include "qgroup-verify.h"
 
 static const char * const qgroup_cmd_group_usage[] = {
 	"btrfs qgroup <command> [options] <path>",
@@ -415,6 +417,61 @@ static int cmd_qgroup_limit(int argc, char **argv)
 	return 0;
 }
 
+static const char * const cmd_qgroup_verify_usage[] = {
+	"btrfs qgroup verify [--qgroup=ids] <path>",
+	"Verify bytecounts in subvolume quota groups.",
+	"If an inconsistency between disk and our computed totals are found,"
+	"the qgroup and it's difference printed.",
+	"-a		print all qgroups, not just inconsistent ones.",
+	NULL
+};
+
+static int cmd_qgroup_verify(int argc, char **argv)
+{
+	char *devpath;
+	int ret = 0;
+	int c;
+	int print_all = 0;
+	struct btrfs_fs_info *info;
+
+	optind = 1;
+	while (1) {
+		c = getopt(argc, argv, "a");
+		if (c < 0)
+			break;
+		switch (c) {
+		case 'a':
+			print_all = 1;
+			break;
+		default:
+			usage(cmd_qgroup_verify_usage);
+		}
+	}
+	if (check_argc_exact(argc - optind, 1))
+		usage(cmd_qgroup_verify_usage);
+
+	devpath = argv[optind];
+	info = open_ctree_fs_info(devpath, 0, 0, 0);
+	if (!info) {
+		fprintf(stderr, "ERROR: can't open fs on '%s'\n", devpath);
+		return 1;
+	}
+
+	if (info->quota_enabled == 0) {
+		fprintf(stderr, "ERROR: quota not enabled on fs at '%s'",
+			devpath);
+		ret = ENOENT;
+		goto out;
+	}
+
+	ret = qgroup_verify_all(info, print_all);
+
+out:
+	close_ctree(info->fs_root);
+
+	return !!ret;
+}
+
 const struct cmd_group qgroup_cmd_group = {
 	qgroup_cmd_group_usage, NULL, {
 		{ "assign", cmd_qgroup_assign, cmd_qgroup_assign_usage,
@@ -428,6 +485,8 @@ const struct cmd_group qgroup_cmd_group = {
 		{ "show", cmd_qgroup_show, cmd_qgroup_show_usage,
 		   NULL, 0 },
 		{ "limit", cmd_qgroup_limit, cmd_qgroup_limit_usage,
+		   NULL, 0 },
+		{ "verify", cmd_qgroup_verify, cmd_qgroup_verify_usage,
 		   NULL, 0 },
 		NULL_CMD_STRUCT
 	}
