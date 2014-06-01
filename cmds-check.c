@@ -6428,6 +6428,7 @@ static struct option long_options[] = {
 	{ "init-csum-tree", 0, NULL, 0 },
 	{ "init-extent-tree", 0, NULL, 0 },
 	{ "backup", 0, NULL, 0 },
+	{ "subvol-extents", 1, NULL, 'E' },
 	{ "qgroup-report", 0, NULL, 'Q' },
 	{ NULL, 0, NULL, 0}
 };
@@ -6442,6 +6443,7 @@ const char * const cmd_check_usage[] = {
 	"--init-csum-tree            create a new CRC tree",
 	"--init-extent-tree          create a new extent tree",
 	"--qgroup-report             print a report on qgroup consistency",
+	"--subvol-extents            print subvolume extents and sharing state",
 	NULL
 };
 
@@ -6451,6 +6453,7 @@ int cmd_check(int argc, char **argv)
 	struct btrfs_root *root;
 	struct btrfs_fs_info *info;
 	u64 bytenr = 0;
+	u64 subvolid = 0;
 	char uuidbuf[BTRFS_UUID_UNPARSED_SIZE];
 	int ret;
 	u64 num;
@@ -6485,6 +6488,9 @@ int cmd_check(int argc, char **argv)
 				break;
 			case 'Q':
 				qgroup_report = 1;
+				break;
+			case 'E':
+				subvolid = arg_strtou64(optarg);
 				break;
 			case '?':
 			case 'h':
@@ -6539,6 +6545,12 @@ int cmd_check(int argc, char **argv)
 		ret = qgroup_verify_all(info);
 		if (ret == 0)
 			print_qgroup_report(1);
+		goto close_out;
+	}
+	if (subvolid) {
+		printf("Print extent state for subvolume %llu on %s\nUUID: %s\n",
+		       subvolid, argv[optind], uuidbuf);
+		ret = print_extent_state(info, subvolid);
 		goto close_out;
 	}
 	printf("Checking filesystem on %s\nUUID: %s\n", argv[optind], uuidbuf);
