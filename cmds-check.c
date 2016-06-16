@@ -67,7 +67,6 @@ static u64 data_bytes_referenced = 0;
 static int found_old_backref = 0;
 static LIST_HEAD(duplicate_extents);
 static LIST_HEAD(delete_items);
-static int repair = 0;
 static int no_holes = 0;
 static int init_extent_tree = 0;
 static int check_data_csum = 0;
@@ -9543,6 +9542,7 @@ int cmd_check(int argc, char **argv)
 	int init_csum_tree = 0;
 	int readonly = 0;
 	int qgroup_report = 0;
+	int qgroups_repaired = 0;
 	enum btrfs_open_ctree_flags ctree_flags = OPEN_CTREE_EXCLUSIVE;
 
 	while(1) {
@@ -9698,7 +9698,7 @@ int cmd_check(int argc, char **argv)
 		       uuidbuf);
 		ret = qgroup_verify_all(info);
 		if (ret == 0)
-			ret = report_qgroups(1);
+			report_qgroups(1);
 		goto close_out;
 	}
 	if (subvolid) {
@@ -9852,6 +9852,10 @@ int cmd_check(int argc, char **argv)
 		err = qgroup_verify_all(info);
 		if (err)
 			goto out;
+		report_qgroups(0);
+		err = repair_qgroups(info, &qgroups_repaired);
+		if (err)
+			goto out;
 	}
 
 	if (!list_empty(&root->fs_info->recow_ebs)) {
@@ -9860,10 +9864,9 @@ int cmd_check(int argc, char **argv)
 	}
 out:
 	/* Don't override original ret */
-	if (ret)
-		report_qgroups(0);
-	else
-		ret = report_qgroups(0);
+	if (!ret && qgroups_repaired)
+		ret = qgroups_repaired;
+
 	if (found_old_backref) { /*
 		 * there was a disk format change when mixed
 		 * backref was in testing tree. The old format
