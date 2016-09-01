@@ -152,17 +152,12 @@ static int compare_data_backref(struct rb_node *node1, struct rb_node *node2)
 	if (back1->bytes < back2->bytes)
 		return -1;
 
-	if (back1->found_ref && back2->found_ref) {
-		if (back1->disk_bytenr > back2->disk_bytenr)
-			return 1;
-		if (back1->disk_bytenr < back2->disk_bytenr)
-			return -1;
+	BUG_ON(!back1->disk_bytenr || !back2->disk_bytenr);
 
-		if (back1->found_ref > back2->found_ref)
-			return 1;
-		if (back1->found_ref < back2->found_ref)
-			return -1;
-	}
+	if (back1->disk_bytenr > back2->disk_bytenr)
+		return 1;
+	if (back1->disk_bytenr < back2->disk_bytenr)
+		return -1;
 
 	return 0;
 }
@@ -4555,6 +4550,7 @@ static struct tree_backref *alloc_tree_backref(struct extent_record *rec,
 						u64 parent, u64 root)
 {
 	struct tree_backref *ref = malloc(sizeof(*ref));
+	int ret;
 
 	if (!ref)
 		return NULL;
@@ -4566,7 +4562,9 @@ static struct tree_backref *alloc_tree_backref(struct extent_record *rec,
 		ref->root = root;
 		ref->node.full_backref = 0;
 	}
-	rb_insert(&rec->backref_tree, &ref->node.node, compare_extent_backref);
+	ret = rb_insert(&rec->backref_tree, &ref->node.node,
+			compare_extent_backref);
+	BUG_ON(ret == -EEXIST);/* We should never get a duplicate */
 
 	return ref;
 }
@@ -4608,9 +4606,10 @@ static struct data_backref *find_data_backref(struct extent_record *rec,
 static struct data_backref *alloc_data_backref(struct extent_record *rec,
 						u64 parent, u64 root,
 						u64 owner, u64 offset,
-						u64 max_size)
+					        u64 bytenr, u64 max_size)
 {
 	struct data_backref *ref = malloc(sizeof(*ref));
+	int ret;
 
 	if (!ref)
 		return NULL;
@@ -4631,7 +4630,10 @@ static struct data_backref *alloc_data_backref(struct extent_record *rec,
 	ref->bytes = max_size;
 	ref->found_ref = 0;
 	ref->num_refs = 0;
-	rb_insert(&rec->backref_tree, &ref->node.node, compare_extent_backref);
+	ref->disk_bytenr = bytenr;
+	ret = rb_insert(&rec->backref_tree, &ref->node.node,
+			compare_extent_backref);
+	BUG_ON(ret == -EEXIST);/* We should never get a duplicate */
 	if (max_size > rec->max_size)
 		rec->max_size = max_size;
 	return ref;
@@ -4941,7 +4943,7 @@ static int add_data_backref(struct cache_tree *extent_cache, u64 bytenr,
 				 bytenr, max_size);
 	if (!back) {
 		back = alloc_data_backref(rec, parent, root, owner, offset,
-					  max_size);
+					  bytenr, max_size);
 		BUG_ON(!back);
 	}
 
